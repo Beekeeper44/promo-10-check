@@ -166,6 +166,7 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
     <div class="chip"><span class="t">T</span> Status <select id="fStatus"><option value="">All</option></select></div>
     <div class="chip"><span class="t">T</span> Sport <select id="fSport"><option value="">All</option></select></div>
     <div class="chip"><span class="t">T</span> User Email <input id="fEmail" style="width:150px"></div>
+    <div class="chip"><span class="t">T</span> Rc Done <select id="fRc"><option value="">All</option><option value="true" selected>true</option><option value="false">false</option></select></div>
   </section>
 
   <div class="bar">
@@ -282,11 +283,11 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
   function v(id){return $(id).value.trim();}
   function filtered(){
     function has(val,q){return !q||String(val).toLowerCase().indexOf(q.toLowerCase())>-1;}
-    var o=v('fOrder'),ac=v('fAc'),ce=v('fCert'),pl=v('fPlayer'),se=v('fSet'),st=v('fStatus'),sp=v('fSport'),em=v('fEmail');
+    var o=v('fOrder'),ac=v('fAc'),ce=v('fCert'),pl=v('fPlayer'),se=v('fSet'),st=v('fStatus'),sp=v('fSport'),em=v('fEmail'),rc=v('fRc');
     return rows.filter(function(r){
       if(ALLOWED.indexOf(r.card_status)<0)return false;
       return has(r.order,o)&&has(r.ac,ac)&&has(r.cert,ce)&&has(r.player,pl)&&has(r.set,se)&&has(r.email,em)
-        &&(!st||r.card_status===st)&&(!sp||r.sport===sp);
+        &&(!st||r.card_status===st)&&(!sp||r.sport===sp)&&(!rc||String(!!r.rc_done)===rc);
     }).sort(function(a,b){var x=a[sortK],y=b[sortK];return ((x>y?1:x<y?-1:0)*sortDir)||(a.idx-b.idx);});
   }
 
@@ -416,7 +417,7 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
 
   ['fOrder','fAc','fCert','fPlayer','fSet','fEmail'].forEach(function(id){$(id).addEventListener('input',render);});
-  ['fStatus','fSport'].forEach(function(id){$(id).addEventListener('change',render);});
+  ['fStatus','fSport','fRc'].forEach(function(id){$(id).addEventListener('change',render);});
 
   function stamp(){$('fetched').textContent=new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit',second:'2-digit'});}
   $('refresh').onclick=function(){loadCards();loadTrack();};
