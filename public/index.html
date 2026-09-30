@@ -141,6 +141,9 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
 .slab-img{width:22px;height:34px;object-fit:cover;border-radius:2px;border:1px solid var(--line);cursor:zoom-in;display:block;background:var(--panel2)}
 .modal .full{max-width:100%;max-height:70vh;display:block;margin:12px auto;border-radius:4px}
 .pass.warn i{background:#d4a017}
+.tclick{cursor:pointer;border-bottom:1px dashed var(--muted)}
+.tclick.on{color:var(--text);border-bottom-color:var(--green)}
+.btn[disabled]{opacity:.6;cursor:wait}
 .sync{font-size:12px;color:var(--muted)}
 .foot{color:var(--muted);font-size:12px;margin:10px 4px}
 @media (max-width:640px){h1{font-size:34px}.sub{margin-bottom:24px}}
@@ -166,6 +169,7 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
     <div class="chip"><span class="t">T</span> Status <select id="fStatus"><option value="">All</option></select></div>
     <div class="chip"><span class="t">T</span> Sport <select id="fSport"><option value="">All</option></select></div>
     <div class="chip"><span class="t">T</span> User Email <input id="fEmail" style="width:150px"></div>
+    <div class="chip"><span class="t">T</span> Comp <select id="fComp"><option value="">All</option><option value="green">$100+ (green)</option><option value="red">Under $100 (red)</option><option value="none">No comp</option></select></div>
     <div class="chip"><span class="t">T</span> Rc Done <select id="fRc"><option value="">All</option><option value="true" selected>true</option><option value="false">false</option></select></div>
   </section>
 
@@ -174,8 +178,8 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
       <div class="count"><span id="nCards">0</span> cards match filters</div>
       <div class="totals" style="margin-top:6px">
         <span>Emailed <b class="g" id="tDone">0</b></span>
-        <span>Comp $100+ <b class="g" id="tYes">0</b></span>
-        <span>Under $100 <b id="tNo" style="color:#e57373">0</b></span>
+        <span class="tclick" data-comp="green" title="Show green rows only">Comp $100+ <b class="g" id="tYes">0</b></span>
+        <span class="tclick" data-comp="red" title="Show red rows only">Under $100 <b id="tNo" style="color:#e57373">0</b></span>
         <span>Orders <b id="tOrders">0</b></span>
         <span>Customers <b id="tUsers">0</b></span>
         <span>All-10 subgrades <b class="g" id="tPerfect">0</b></span>
@@ -186,7 +190,8 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
     <div class="actions">
       <button class="btn" id="refresh">⟳ REFRESH</button>
       <button class="btn green" id="copy">⧉ COPY ALL</button>
-      <span class="sync" id="sync">Connecting…</span> 
+      <button class="btn green" id="csv">⤓ EXPORT CSV</button>
+      <span class="sync" id="sync">Connecting…</span>
       <span>Fetched <span id="fetched"></span></span>
     </div>
   </div>
@@ -232,6 +237,9 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
   function compVal(c){if(c==null)return null;var n=parseFloat(String(c).replace(/[$,\s]/g,''));return isNaN(n)?null:n;}
   function compCls(c){var n=compVal(c);return n===null?'':n>=100?'pay-yes':'pay-no';}
   function rowCls(ac){var t=T(ac);return (t.done?'is-done ':'')+compCls(t.comp);}
+  function compMatch(r,cf){if(!cf)return true;var n=compVal(T(r.ac).comp);
+    return cf==='green'?(n!==null&&n>=100):cf==='red'?(n!==null&&n<100):cf==='none'?n===null:true;}
+  function sortVal(r,k){if(k==='comp'){var n=compVal(T(r.ac).comp);return n===null?null:n;}if(k==='done')return T(r.ac).done?1:0;return r[k];}
   function perfect(r){return r.centering===10&&r.corners===10&&r.edges===10&&r.surface===10;}
   function showErr(msg){var e=$('errbar');if(!msg){e.hidden=true;return;}e.hidden=false;e.textContent=msg;}
 
@@ -254,10 +262,10 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
 
   // ---------- columns ----------
   var cols=[
-    {k:"done",l:"DONE",ns:1},{k:"copyrow",l:"COPY",ns:1},{k:"url",l:"CARD_URL",ns:1},{k:"order",l:"ORDER_NUMBER"},
+    {k:"done",l:"DONE"},{k:"copyrow",l:"COPY",ns:1},{k:"url",l:"CARD_URL",ns:1},{k:"order",l:"ORDER_NUMBER"},
     {k:"front",l:"FRONT_SLAB",ns:1},{k:"back",l:"BACK_SLAB",ns:1},
     {k:"username",l:"USERNAME"},{k:"email",l:"USER_EMAIL"},{k:"card_status",l:"CARD_STATUS"},{k:"validation",l:"VALIDATION"},
-    {k:"rc_done",l:"RC_DONE",ns:1},{k:"rc_ts",l:"RC_DONE_AT"},{k:"cert",l:"CERT_NUMBER"},{k:"comp",l:"COMP",ns:1},{k:"ac",l:"AC_NUMBER",n:1},
+    {k:"rc_done",l:"RC_DONE",ns:1},{k:"rc_ts",l:"RC_DONE_AT"},{k:"cert",l:"CERT_NUMBER"},{k:"comp",l:"COMP"},{k:"ac",l:"AC_NUMBER",n:1},
     {k:"grade",l:"GRADE",band:"g10"},
     {k:"centering",l:"CENTERING",n:1,band:"b-center"},{k:"corners",l:"CORNERS",n:1,band:"b-corner"},{k:"edges",l:"EDGES",n:1,band:"b-edge"},{k:"surface",l:"SURFACE",n:1,band:"b-surface"},
     {k:"expected",l:"EXPECTED_OVERALL",n:1,band:"g10"},
@@ -271,7 +279,7 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
       return '<th class="'+(c.n?'num ':'')+(c.band?'band '+c.band:'')+'"'+(c.ns?'':' data-k="'+c.k+'"')+'>'+c.l+
         (sortK===c.k?'<span class="arr">'+(sortDir<0?'▼':'▲')+'</span>':'')+'</th>';}).join('');
     document.querySelectorAll('th[data-k]').forEach(function(th){
-      th.onclick=function(){var k=th.dataset.k; if(sortK===k)sortDir*=-1; else {sortK=k;sortDir=1;} render();};
+      th.onclick=function(){var k=th.dataset.k; if(sortK===k)sortDir*=-1; else {sortK=k;sortDir=(k==='comp'||k==='done')?-1:1;} render();};
     });
   }
 
@@ -283,12 +291,14 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
   function v(id){return $(id).value.trim();}
   function filtered(){
     function has(val,q){return !q||String(val).toLowerCase().indexOf(q.toLowerCase())>-1;}
-    var o=v('fOrder'),ac=v('fAc'),ce=v('fCert'),pl=v('fPlayer'),se=v('fSet'),st=v('fStatus'),sp=v('fSport'),em=v('fEmail'),rc=v('fRc');
+    var o=v('fOrder'),ac=v('fAc'),ce=v('fCert'),pl=v('fPlayer'),se=v('fSet'),st=v('fStatus'),sp=v('fSport'),em=v('fEmail'),rc=v('fRc'),cf=v('fComp');
     return rows.filter(function(r){
       if(ALLOWED.indexOf(r.card_status)<0)return false;
       return has(r.order,o)&&has(r.ac,ac)&&has(r.cert,ce)&&has(r.player,pl)&&has(r.set,se)&&has(r.email,em)
-        &&(!st||r.card_status===st)&&(!sp||r.sport===sp)&&(!rc||String(!!r.rc_done)===rc);
-    }).sort(function(a,b){var x=a[sortK],y=b[sortK];return ((x>y?1:x<y?-1:0)*sortDir)||(a.idx-b.idx);});
+        &&(!st||r.card_status===st)&&(!sp||r.sport===sp)&&(!rc||String(!!r.rc_done)===rc)&&compMatch(r,cf);
+    }).sort(function(a,b){var x=sortVal(a,sortK),y=sortVal(b,sortK);
+      if(x===null&&y!==null)return 1; if(y===null&&x!==null)return -1;
+      return ((x>y?1:x<y?-1:0)*sortDir)||(a.idx-b.idx);});
   }
 
   // ---------- cells ----------
@@ -346,13 +356,20 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
   }
 
   // ---------- data ----------
-  function loadCards(){
-    $('sync').textContent='Loading…';
-    return fetch('/api/metabase',{cache:'no-store'}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});})
+  var loading=false;
+  function loadCards(manual){
+    if(loading)return Promise.resolve(); loading=true;
+    var btn=$('refresh'); btn.disabled=true; btn.textContent='⟳ REFRESHING…'; $('sync').textContent='Loading from Metabase…';
+    var ctl=window.AbortController?new AbortController():null; var to=setTimeout(function(){if(ctl)ctl.abort();},65000);
+    return fetch('/api/metabase?t='+Date.now(),{cache:'no-store',signal:ctl&&ctl.signal})
+      .then(function(r){return r.text().then(function(txt){var j;try{j=JSON.parse(txt);}catch(e){throw new Error(r.ok?'Bad response':'HTTP '+r.status+(r.status===504?' (Metabase took too long)':''));}
+        if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});})
       .then(function(j){
         rows=(j.rows||[]).map(normalize).filter(function(r){return r.ac;});
         showErr(''); fillSport(); stamp(); render();
-      }).catch(function(e){showErr('Could not load Metabase question 42340: '+e.message);rows=rows||[];render();});
+        if(manual)toast('Refreshed · '+rows.length+' cards from Metabase');
+      }).catch(function(e){showErr('Could not load Metabase question 42340: '+(e.name==='AbortError'?'timed out':e.message));render();})
+      .finally(function(){clearTimeout(to);loading=false;btn.disabled=false;btn.textContent='⟳ REFRESH';loadTrack();});
   }
   function loadTrack(){
     return fetch('/api/track',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
@@ -417,20 +434,39 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
 
   ['fOrder','fAc','fCert','fPlayer','fSet','fEmail'].forEach(function(id){$(id).addEventListener('input',render);});
-  ['fStatus','fSport','fRc'].forEach(function(id){$(id).addEventListener('change',render);});
+  ['fStatus','fSport','fRc','fComp'].forEach(function(id){$(id).addEventListener('change',render);});
 
   function stamp(){$('fetched').textContent=new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit',second:'2-digit'});}
-  $('refresh').onclick=function(){loadCards();loadTrack();};
-  $('copy').onclick=function(){
+  $('refresh').onclick=function(){loadCards(true);};
+  function exportTable(){
     var cc=cols.filter(function(c){return ["url","front","back","copyrow"].indexOf(c.k)<0;});
-    var hdr=cc.map(function(c){return c.l;}).join('\t');
-    var lines=current.map(function(r){return cc.map(function(c){
-      return c.k==="rc_ts"?r.rc_done_at:c.k==="rc_done"?(r.rc_done?"TRUE":"FALSE"):c.k==="done"?(T(r.ac).done?"TRUE":"FALSE"):c.k==="comp"?(T(r.ac).comp||""):(r[c.k]==null?"":r[c.k]);}).join('\t');});
-    copyText([hdr].concat(lines).join('\n')).then(function(){toast('Copied '+current.length+' cards');},function(){toast('Copy blocked by browser');});
+    var hdr=cc.map(function(c){return c.l;});
+    var data=current.map(function(r){return cc.map(function(c){
+      return c.k==="rc_ts"?r.rc_done_at:c.k==="rc_done"?(r.rc_done?"TRUE":"FALSE"):c.k==="done"?(T(r.ac).done?"TRUE":"FALSE"):c.k==="comp"?(T(r.ac).comp||""):(r[c.k]==null?"":r[c.k]);});});
+    return {hdr:hdr,data:data};
+  }
+  $('copy').onclick=function(){
+    var t=exportTable();
+    copyText([t.hdr.join('\t')].concat(t.data.map(function(r){return r.join('\t');})).join('\n'))
+      .then(function(){toast('Copied '+current.length+' cards');},function(){toast('Copy blocked by browser');});
   };
+  $('csv').onclick=function(){
+    var t=exportTable();
+    function q(v){v=String(v==null?'':v);return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+    var csv='\ufeff'+[t.hdr].concat(t.data).map(function(r){return r.map(q).join(',');}).join('\r\n');
+    var blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); var a=document.createElement('a');
+    var d=new Date(),pad=function(n){return String(n).padStart(2,'0');};
+    a.href=URL.createObjectURL(blob); a.download='promo-check-'+d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'.csv';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+    toast('Exported '+current.length+' cards');
+  };
+  document.querySelectorAll('.tclick').forEach(function(el){el.onclick=function(){
+    var sel=$('fComp'); sel.value=sel.value===el.dataset.comp?'':el.dataset.comp; syncTotChips(); render();};});
+  function syncTotChips(){document.querySelectorAll('.tclick').forEach(function(el){el.classList.toggle('on',$('fComp').value===el.dataset.comp);});}
+  $('fComp').addEventListener('change',syncTotChips);
 
   render();
-  loadTrack().then(loadCards);
+  loadTrack().then(function(){return loadCards(false);});
   setInterval(function(){if(!document.hidden)loadTrack();},15000);
 })();
 </script>

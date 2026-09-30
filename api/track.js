@@ -3,9 +3,18 @@
 const { neon } = require('@neondatabase/serverless');
 
 let ready = false;
+// Accept the names Vercel's Neon integration may create (with or without a custom prefix)
+function dbUrl() {
+  const env = process.env;
+  const direct = env.DATABASE_URL || env.POSTGRES_URL || env.NEON_DATABASE_URL || env.DATABASE_URL_UNPOOLED || env.POSTGRES_URL_NON_POOLING;
+  if (direct) return direct;
+  const key = Object.keys(env).find(k => /(_DATABASE_URL|_POSTGRES_URL)$/.test(k) && /^postgres(ql)?:\/\//.test(env[k] || ''));
+  return key ? env[key] : null;
+}
 async function db() {
-  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
-  const sql = neon(process.env.DATABASE_URL);
+  const url = dbUrl();
+  if (!url) throw new Error('No database URL found. Add DATABASE_URL in Vercel and redeploy.');
+  const sql = neon(url);
   if (!ready) {
     await sql`CREATE TABLE IF NOT EXISTS promo_check_tracking (
       ac_number  TEXT PRIMARY KEY,
