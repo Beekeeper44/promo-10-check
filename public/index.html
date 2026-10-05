@@ -169,6 +169,10 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
     <div class="chip"><span class="t">T</span> Status <select id="fStatus"><option value="">All</option></select></div>
     <div class="chip"><span class="t">T</span> Sport <select id="fSport"><option value="">All</option></select></div>
     <div class="chip"><span class="t">T</span> User Email <input id="fEmail" style="width:150px"></div>
+    <div class="chip"><span class="t">▦</span> Order Created
+      <input type="date" id="fFrom" value="2026-10-01" aria-label="Order created start date" style="width:auto;color-scheme:dark light">
+      <span class="t">→ today</span>
+      <button type="button" id="fDateClr" class="btn" style="padding:2px 6px;font-size:10px" title="Clear start date (show all)" aria-label="Clear order created start date">×</button></div>
     <div class="chip"><span class="t">T</span> Comp <select id="fComp"><option value="">All</option><option value="green">$100+ (green)</option><option value="red">Under $100 (red)</option><option value="none">No comp</option></select></div>
     <div class="chip"><span class="t">T</span> Rc Done <select id="fRc"><option value="">All</option><option value="true" selected>true</option><option value="false">false</option></select></div>
   </section>
@@ -232,11 +236,17 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
   function num(v){var n=parseFloat(v);return isNaN(n)?null:n;}
   function fmtDate(v){if(!v)return '';var d=new Date(v);if(isNaN(d))return String(v);
     return d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});}
+  function fmtDay(v){if(!v)return '';var m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    var d=m&&/^\d{4}-\d{2}-\d{2}$/.test(String(v).trim())?new Date(+m[1],+m[2]-1,+m[3]):new Date(v);
+    if(isNaN(d))return String(v);return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+  function dayTs(v){if(!v)return 0;var m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3]).getTime():(Date.parse(v)||0);}
   function truthy(v){return v===true||v===1||/^(true|t|1|yes|✅)$/i.test(String(v||'').trim());}
   function T(ac){return track[ac]||{};}
   function compVal(c){if(c==null)return null;var n=parseFloat(String(c).replace(/[$,\s]/g,''));return isNaN(n)?null:n;}
   function compCls(c){var n=compVal(c);return n===null?'':n>=100?'pay-yes':'pay-no';}
   function rowCls(ac){var t=T(ac);return (t.done?'is-done ':'')+compCls(t.comp);}
+  function dayStart(v){var m=String(v||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3]).getTime():0;}
+  function todayEnd(){var d=new Date();d.setHours(23,59,59,999);return d.getTime();}
   function compMatch(r,cf){if(!cf)return true;var n=compVal(T(r.ac).comp);
     return cf==='green'?(n!==null&&n>=100):cf==='red'?(n!==null&&n<100):cf==='none'?n===null:true;}
   function sortVal(r,k){if(k==='comp'){var n=compVal(T(r.ac).comp);return n===null?null:n;}if(k==='done')return T(r.ac).done?1:0;return r[k];}
@@ -248,6 +258,7 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
     var rcAt=pick(o,'RC_DONE_AT');
     return {idx:i,ac:ac,
       url:pick(o,'CARD_URL')||'',order:pick(o,'ORDER_NUMBER')||'',
+      order_created:fmtDay(pick(o,'ORDER_CREATED_AT')),order_created_ts:dayTs(pick(o,'ORDER_CREATED_AT')),
       front:pick(o,'FRONT_SLAB_PICTURE_URL')||'',back:pick(o,'BACK_SLAB_PICTURE_URL')||'',
       username:pick(o,'USERNAME')||'',email:pick(o,'USER_EMAIL')||'',
       card_status:String(pick(o,'CARD_STATUS')||'').trim(),
@@ -262,7 +273,7 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
 
   // ---------- columns ----------
   var cols=[
-    {k:"done",l:"DONE"},{k:"copyrow",l:"COPY",ns:1},{k:"url",l:"CARD_URL",ns:1},{k:"order",l:"ORDER_NUMBER"},
+    {k:"done",l:"DONE"},{k:"copyrow",l:"COPY",ns:1},{k:"url",l:"CARD_URL",ns:1},{k:"order",l:"ORDER_NUMBER"},{k:"order_created_ts",l:"ORDER_CREATED"},
     {k:"front",l:"FRONT_SLAB",ns:1},{k:"back",l:"BACK_SLAB",ns:1},
     {k:"username",l:"USERNAME"},{k:"email",l:"USER_EMAIL"},{k:"card_status",l:"CARD_STATUS"},{k:"validation",l:"VALIDATION"},
     {k:"rc_done",l:"RC_DONE",ns:1},{k:"rc_ts",l:"RC_DONE_AT"},{k:"cert",l:"CERT_NUMBER"},{k:"comp",l:"COMP"},{k:"ac",l:"AC_NUMBER",n:1},
@@ -291,11 +302,11 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
   function v(id){return $(id).value.trim();}
   function filtered(){
     function has(val,q){return !q||String(val).toLowerCase().indexOf(q.toLowerCase())>-1;}
-    var o=v('fOrder'),ac=v('fAc'),ce=v('fCert'),pl=v('fPlayer'),se=v('fSet'),st=v('fStatus'),sp=v('fSport'),em=v('fEmail'),rc=v('fRc'),cf=v('fComp');
+    var o=v('fOrder'),ac=v('fAc'),ce=v('fCert'),pl=v('fPlayer'),se=v('fSet'),st=v('fStatus'),sp=v('fSport'),em=v('fEmail'),rc=v('fRc'),cf=v('fComp'),df=dayStart(v('fFrom')),dt=todayEnd();
     return rows.filter(function(r){
       if(ALLOWED.indexOf(r.card_status)<0)return false;
       return has(r.order,o)&&has(r.ac,ac)&&has(r.cert,ce)&&has(r.player,pl)&&has(r.set,se)&&has(r.email,em)
-        &&(!st||r.card_status===st)&&(!sp||r.sport===sp)&&(!rc||String(!!r.rc_done)===rc)&&compMatch(r,cf);
+        &&(!st||r.card_status===st)&&(!sp||r.sport===sp)&&(!rc||String(!!r.rc_done)===rc)&&compMatch(r,cf)&&(!df||(r.order_created_ts&&r.order_created_ts>=df))&&(!df||r.order_created_ts<=dt);
     }).sort(function(a,b){var x=sortVal(a,sortK),y=sortVal(b,sortK);
       if(x===null&&y!==null)return 1; if(y===null&&x!==null)return -1;
       return ((x>y?1:x<y?-1:0)*sortDir)||(a.idx-b.idx);});
@@ -322,6 +333,7 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
       case "validation": return valCell(r.validation);
       case "rc_done": return '<td>'+(r.rc_done?'<span class="pass"><i>✓</i></span>':'')+'</td>';
       case "rc_ts": return '<td>'+esc(r.rc_done_at)+'</td>';
+      case "order_created_ts": return '<td>'+esc(r.order_created)+'</td>';
       case "comp": return '<td class="compcell"><input class="compin" data-ac="'+esc(r.ac)+'" placeholder="$" value="'+esc(t.comp||'')+'"'+(t.done?' readonly title="Locked. Uncheck DONE to edit."':'')+' aria-label="Comp for AC '+esc(r.ac)+'"></td>';
       case "centering": case "corners": case "edges": case "surface": return sg(r[c.k],c.band);
     }
@@ -366,7 +378,9 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
         if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});})
       .then(function(j){
         rows=(j.rows||[]).map(normalize).filter(function(r){return r.ac;});
-        showErr(''); fillSport(); stamp(); render();
+        var hasCreated=(j.rows||[]).some(function(x){return pick(x,'ORDER_CREATED_AT')!=null;});
+        showErr(rows.length&&!hasCreated?'ORDER_CREATED_AT is not coming from Metabase question 42340 yet. Add it to the question SQL to fill the ORDER_CREATED column.':'');
+        fillSport(); stamp(); render();
         if(manual)toast('Refreshed · '+rows.length+' cards from Metabase');
       }).catch(function(e){showErr('Could not load Metabase question 42340: '+(e.name==='AbortError'?'timed out':e.message));render();})
       .finally(function(){clearTimeout(to);loading=false;btn.disabled=false;btn.textContent='⟳ REFRESH';loadTrack();});
@@ -434,7 +448,7 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
 
   ['fOrder','fAc','fCert','fPlayer','fSet','fEmail'].forEach(function(id){$(id).addEventListener('input',render);});
-  ['fStatus','fSport','fRc','fComp'].forEach(function(id){$(id).addEventListener('change',render);});
+  ['fStatus','fSport','fRc','fComp','fFrom'].forEach(function(id){$(id).addEventListener('change',render);});
 
   function stamp(){$('fetched').textContent=new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit',second:'2-digit'});}
   $('refresh').onclick=function(){loadCards(true);};
@@ -442,7 +456,7 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
     var cc=cols.filter(function(c){return ["url","front","back","copyrow"].indexOf(c.k)<0;});
     var hdr=cc.map(function(c){return c.l;});
     var data=current.map(function(r){return cc.map(function(c){
-      return c.k==="rc_ts"?r.rc_done_at:c.k==="rc_done"?(r.rc_done?"TRUE":"FALSE"):c.k==="done"?(T(r.ac).done?"TRUE":"FALSE"):c.k==="comp"?(T(r.ac).comp||""):(r[c.k]==null?"":r[c.k]);});});
+      return c.k==="order_created_ts"?r.order_created:c.k==="rc_ts"?r.rc_done_at:c.k==="rc_done"?(r.rc_done?"TRUE":"FALSE"):c.k==="done"?(T(r.ac).done?"TRUE":"FALSE"):c.k==="comp"?(T(r.ac).comp||""):(r[c.k]==null?"":r[c.k]);});});
     return {hdr:hdr,data:data};
   }
   $('copy').onclick=function(){
@@ -462,6 +476,7 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
   };
   document.querySelectorAll('.tclick').forEach(function(el){el.onclick=function(){
     var sel=$('fComp'); sel.value=sel.value===el.dataset.comp?'':el.dataset.comp; syncTotChips(); render();};});
+  document.getElementById('fDateClr').onclick=function(){document.getElementById('fFrom').value='';render();};
   function syncTotChips(){document.querySelectorAll('.tclick').forEach(function(el){el.classList.toggle('on',$('fComp').value===el.dataset.comp);});}
   $('fComp').addEventListener('change',syncTotChips);
 
