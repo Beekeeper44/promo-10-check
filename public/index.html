@@ -160,7 +160,7 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
   <p class="sub">No searches yet · session only · auto-clears on close</p>
 
 
-  <section class="filters" aria-label="Filters" style="row-gap:8px">
+  <form autocomplete="off" onsubmit="return false"><section class="filters" aria-label="Filters" style="row-gap:8px">
     <div class="chip"><span class="t">#</span> Order Number <input id="fOrder" inputmode="numeric" style="width:90px"></div>
     <div class="chip"><span class="t">T</span> Ac Number <input id="fAc" inputmode="numeric" style="width:90px"></div>
     <div class="chip"><span class="t">T</span> Cert Number <input id="fCert" style="width:90px"></div>
@@ -174,8 +174,8 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
       <span class="t">→ today</span>
       <button type="button" id="fDateClr" class="btn" style="padding:2px 6px;font-size:10px" title="Clear start date (show all)" aria-label="Clear order created start date">×</button></div>
     <div class="chip"><span class="t">T</span> Comp <select id="fComp"><option value="">All</option><option value="green">$100+ (green)</option><option value="red">Under $100 (red)</option><option value="none">No comp</option></select></div>
-    <div class="chip"><span class="t">T</span> Rc Done <select id="fRc"><option value="">All</option><option value="true" selected>true</option><option value="false">false</option></select></div>
-  </section>
+    <div class="chip"><span class="t">T</span> Rc Done <select id="fRc"><option value="">All</option><option value="true">true</option><option value="false">false</option></select></div>
+  </section></form>
 
   <div class="bar">
     <div>
@@ -236,10 +236,10 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
   function num(v){var n=parseFloat(v);return isNaN(n)?null:n;}
   function fmtDate(v){if(!v)return '';var d=new Date(v);if(isNaN(d))return String(v);
     return d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});}
-  function fmtDay(v){if(!v)return '';var m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
-    var d=m&&/^\d{4}-\d{2}-\d{2}$/.test(String(v).trim())?new Date(+m[1],+m[2]-1,+m[3]):new Date(v);
-    if(isNaN(d))return String(v);return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
-  function dayTs(v){if(!v)return 0;var m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3]).getTime():(Date.parse(v)||0);}
+  function ymd(v){var m=String(v||'').match(/(\d{4})-(\d{2})-(\d{2})/);return m?{y:+m[1],m:+m[2],d:+m[3]}:null;}
+  function fmtDay(v){if(!v)return '';var p=ymd(v);if(!p){var d=new Date(v);return isNaN(d)?String(v):d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+    return new Date(p.y,p.m-1,p.d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+  function dayTs(v){if(!v)return 0;var p=ymd(v);if(p)return new Date(p.y,p.m-1,p.d).getTime();var d=new Date(v);return isNaN(d)?0:new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();}
   function truthy(v){return v===true||v===1||/^(true|t|1|yes|✅)$/i.test(String(v||'').trim());}
   function T(ac){return track[ac]||{};}
   function compVal(c){if(c==null)return null;var n=parseFloat(String(c).replace(/[$,\s]/g,''));return isNaN(n)?null:n;}
@@ -345,7 +345,25 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
     current=filtered();
     var tb=$('body');
     if(!rows.length){tb.innerHTML='<tr><td colspan="'+cols.length+'" class="empty">Loading cards from Metabase…</td></tr>';}
-    else if(!current.length){tb.innerHTML='<tr><td colspan="'+cols.length+'" class="empty">No cards match these filters. Clear a filter to see more.</td></tr>';}
+    else if(!current.length){
+      var df=dayStart(v('fFrom')),inStatus=rows.filter(function(r){return ALLOWED.indexOf(r.card_status)>-1;});
+      var before=df?inStatus.filter(function(r){return r.order_created_ts&&r.order_created_ts<df;}).length:0;
+      var noDate=df?inStatus.filter(function(r){return !r.order_created_ts;}).length:0;
+      var latest=inStatus.reduce(function(m,r){return Math.max(m,r.order_created_ts||0);},0);
+      var why=df?(before+' cards were created before the start date'+(noDate?', '+noDate+' have no created date':'')+(latest?'. Newest order created: '+new Date(latest).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'')+'.'):'';
+      var oq=v('fOrder'),msg;
+      if(oq){
+        var inData=rows.filter(function(r){return String(r.order).indexOf(oq)>-1;});
+        if(!inData.length) msg='Order '+oq+' is not in Metabase question 42340 results. None of its cards passed the query (status, overall 10, Arena grading, customer). Run the order check query in Metabase to see why.';
+        else {
+          var hid=[];var r0=inData[0];
+          if(ALLOWED.indexOf(r0.card_status)<0)hid.push('status '+r0.card_status);
+          if(df&&(!r0.order_created_ts||r0.order_created_ts<df))hid.push('Order Created start date (order created '+(r0.order_created||'blank')+')');
+          if(v('fComp'))hid.push('Comp filter');if(v('fRc'))hid.push('Rc Done filter');if(v('fSport'))hid.push('Sport filter');if(v('fStatus'))hid.push('Status filter');
+          msg='Order '+oq+' has '+inData.length+' card(s) loaded but they are hidden by: '+(hid.join(', ')||'another filter')+'.';
+        }
+      } else msg='No cards match these filters. '+why+' Clear a filter to see more.';
+      tb.innerHTML='<tr><td colspan="'+cols.length+'" class="empty">'+esc(msg)+'</td></tr>';}
     else tb.innerHTML=current.map(function(r){return '<tr data-ac="'+esc(r.ac)+'" class="'+rowCls(r.ac)+'">'+cols.map(function(c){return cell(c,r);}).join('')+'</tr>';}).join('');
     $('nCards').textContent=current.length;
     refreshTotals();
@@ -381,6 +399,7 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
         var hasCreated=(j.rows||[]).some(function(x){return pick(x,'ORDER_CREATED_AT')!=null;});
         showErr(rows.length&&!hasCreated?'ORDER_CREATED_AT is not coming from Metabase question 42340 yet. Add it to the question SQL to fill the ORDER_CREATED column.':'');
         fillSport(); stamp(); render();
+        document.querySelector('.foot').textContent='Source: Metabase question 42340 · loaded '+(j.rows||[]).length+' rows ('+(j.source||'query')+') · '+rows.filter(function(r){return ALLOWED.indexOf(r.card_status)>-1;}).length+' pending cards · DONE and COMP are shared with the team.';
         if(manual)toast('Refreshed · '+rows.length+' cards from Metabase');
       }).catch(function(e){showErr('Could not load Metabase question 42340: '+(e.name==='AbortError'?'timed out':e.message));render();})
       .finally(function(){clearTimeout(to);loading=false;btn.disabled=false;btn.textContent='⟳ REFRESH';loadTrack();});
@@ -447,7 +466,8 @@ tr.pay-yes .rowcopy,tr.pay-no .rowcopy{border-color:#0b2a14;color:#0b2a14}
   $('modal').onclick=function(e){if(e.target.id==='modal')closeModal();};
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
 
-  ['fOrder','fAc','fCert','fPlayer','fSet','fEmail'].forEach(function(id){$(id).addEventListener('input',render);});
+  ['fOrder','fAc','fCert','fPlayer','fSet','fEmail'].forEach(function(id){$(id).addEventListener('input',render);
+    $(id).addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();loadCards(true);}});});
   ['fStatus','fSport','fRc','fComp','fFrom'].forEach(function(id){$(id).addEventListener('change',render);});
 
   function stamp(){$('fetched').textContent=new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit',second:'2-digit'});}
